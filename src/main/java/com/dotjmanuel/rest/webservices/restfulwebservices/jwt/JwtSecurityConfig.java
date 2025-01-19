@@ -1,11 +1,14 @@
 package com.dotjmanuel.rest.webservices.restfulwebservices.jwt;
 
+import static org.springframework.security.config.Customizer.withDefaults;
+
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.UUID;
 
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -13,11 +16,10 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -26,8 +28,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
-import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -39,35 +39,29 @@ import com.nimbusds.jose.proc.SecurityContext;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
 public class JwtSecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
         return httpSecurity
-                .csrf(AbstractHttpConfigurer::disable) // (1)
+        		.authorizeRequests(
+                        auth -> auth
+                        	.mvcMatchers("/authenticate", "/actuator", "/actuator/*")
+                            .permitAll()
+                            .requestMatchers(PathRequest.toH2Console()).permitAll()
+                            .antMatchers(HttpMethod.OPTIONS,"/**")
+                            .permitAll()
+                            .anyRequest()
+                            .authenticated())
+                .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(
                         session -> 
                             session.sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS)) // (2)
-                .authorizeRequests(
-                        auth -> 
-                            auth.mvcMatchers("/authenticate", "/actuator", "/actuator/*")
-                                .permitAll()
-                                .antMatchers(HttpMethod.OPTIONS,"/**")
-                                .permitAll()
-                                .anyRequest()
-                                .authenticated()) // (3)
-                .oauth2ResourceServer(
-                        OAuth2ResourceServerConfigurer::jwt) // (4)
-                .exceptionHandling(
-                        (ex) -> 
-                            ex.authenticationEntryPoint(
-                                new BearerTokenAuthenticationEntryPoint())
-                              .accessDeniedHandler(
-                                new BearerTokenAccessDeniedHandler()))
+                                SessionCreationPolicy.STATELESS))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(withDefaults()))
                 .httpBasic(
-                        Customizer.withDefaults()) // (5)
+                        Customizer.withDefaults())
+                .headers(header -> header.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
                 .build();
     }
 
